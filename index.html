@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Мой маршрут — Шымкент</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0F1720">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Мой маршрут">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0F1720;
+    --panel: #17222E;
+    --panel-raised: #1E2C3A;
+    --line: #2B3A48;
+    --text: #EAEFF4;
+    --muted: #8697A6;
+    --amber: #E8A33D;
+    --teal: #4FB6AC;
+    --home: #E8A33D;
+    --school: #4FB6AC;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color: transparent;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--bg); color:var(--text);
+    font-family:'Inter', sans-serif;
+    overscroll-behavior:none;
+  }
+  h1,h2,h3, .num, .brand{ font-family:'Space Grotesk', sans-serif; }
+
+  #app{ position:relative; height:100vh; width:100vw; overflow:hidden; display:flex; flex-direction:column;}
+
+  header{
+    position:absolute; top:0; left:0; right:0; z-index:500;
+    padding: 18px 18px 40px;
+    background: linear-gradient(180deg, rgba(15,23,32,0.92) 0%, rgba(15,23,32,0.55) 65%, transparent 100%);
+    pointer-events:none;
+  }
+  .brand{ font-size:15px; font-weight:600; letter-spacing:0.2px; color:var(--text); }
+  .brand span{ color:var(--muted); font-family:'Inter', sans-serif; font-weight:400; }
+
+  #map{ position:absolute; inset:0; z-index:1; background:#0c131a; }
+
+  .locate-btn{
+    position:absolute; z-index:500; right:16px; bottom:308px;
+    width:46px; height:46px; border-radius:14px;
+    background:var(--panel-raised); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
+    pointer-events:all; color:var(--text); cursor:pointer;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+  }
+  .locate-btn:active{ transform: scale(0.95); }
+  .locate-btn svg{ width:20px; height:20px; }
+  .locate-btn.tracking{ color: var(--amber); border-color: var(--amber); }
+
+  #sheet{
+    position:absolute; left:0; right:0; bottom:0; z-index:500;
+    background: var(--panel);
+    border-top: 1px solid var(--line);
+    border-radius: 22px 22px 0 0;
+    padding: 16px 16px calc(18px + env(safe-area-inset-bottom));
+    box-shadow: 0 -12px 32px rgba(0,0,0,0.4);
+  }
+  .grabber{ width:36px; height:4px; border-radius:2px; background:var(--line); margin:0 auto 14px; }
+
+  .dest-row{ display:flex; gap:10px; margin-bottom:12px; }
+  .dest-card{
+    flex:1; text-align:left; cursor:pointer;
+    background: var(--panel-raised); border:1.5px solid var(--line);
+    border-radius:16px; padding:12px 14px;
+    display:flex; flex-direction:column; gap:6px;
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .dest-card:active{ transform: scale(0.98); }
+  .dest-card.active{ border-color: var(--dot-color, var(--amber)); background:#20303F; }
+  .dest-top{ display:flex; align-items:center; gap:8px; }
+  .dot{ width:9px; height:9px; border-radius:50%; flex:none; }
+  .dest-name{ font-size:14px; font-weight:600; color:var(--text); }
+  .dest-addr{ font-size:12px; color:var(--muted); line-height:1.35; }
+
+  .info-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 4px 2px 14px;
+    min-height: 34px;
+  }
+  .info-stats{ display:flex; gap:18px; }
+  .stat .num{ font-size:20px; font-weight:700; color:var(--text); }
+  .stat .lab{ font-size:11px; color:var(--muted); margin-top:1px; }
+  .status-msg{ font-size:13px; color:var(--muted); }
+
+  .profile-row{ display:flex; gap:8px; margin-bottom:12px; }
+  .profile-btn{
+    flex:1; padding:9px 0; border-radius:12px; border:1px solid var(--line);
+    background:transparent; color:var(--muted); font-family:'Inter'; font-size:12.5px; font-weight:500;
+    display:flex; align-items:center; justify-content:center; gap:6px; cursor:pointer;
+  }
+  .profile-btn.active{ background: var(--panel-raised); color:var(--text); border-color:#3A4C5C; }
+  .profile-btn svg{ width:15px; height:15px; }
+
+  .go-btn{
+    width:100%; padding:15px; border:none; border-radius:16px;
+    background: var(--amber); color:#1A1204; font-family:'Space Grotesk';
+    font-size:15px; font-weight:700; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    transition: opacity .15s ease;
+  }
+  .go-btn:active{ opacity:0.85; }
+  .go-btn:disabled{ background:#3A4451; color:#748094; }
+  .go-btn svg{ width:17px; height:17px; }
+
+  .leaflet-control-attribution{
+    background: rgba(15,23,32,0.7) !important; color:#8697A6 !important; font-size:9px !important;
+  }
+  .leaflet-control-attribution a{ color:#A7B4C0 !important; }
+  .leaflet-control-zoom{ display:none; }
+
+  .me-pulse{
+    width:16px; height:16px; border-radius:50%;
+    background:#4A9BFF; border:3px solid #0F1720;
+    box-shadow: 0 0 0 6px rgba(74,155,255,0.25);
+  }
+  .pin-label{
+    font-family:'Inter'; font-size:11px; font-weight:600; color:#0F1720;
+    background:#EAEFF4; padding:3px 7px; border-radius:8px; white-space:nowrap;
+    box-shadow:0 2px 6px rgba(0,0,0,0.3);
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand">Мой маршрут <span>· Шымкент</span></div>
+  </header>
+
+  <div id="map"></div>
+
+  <div class="locate-btn" id="locateBtn" title="Моё местоположение">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>
+  </div>
+
+  <div id="sheet">
+    <div class="grabber"></div>
+
+    <div class="dest-row">
+      <div class="dest-card" id="cardSchool" style="--dot-color: var(--school);">
+        <div class="dest-top"><span class="dot" style="background:var(--school);"></span><span class="dest-name">Школа</span></div>
+        <div class="dest-addr">Tengri International School</div>
+      </div>
+      <div class="dest-card" id="cardHome" style="--dot-color: var(--home);">
+        <div class="dest-top"><span class="dot" style="background:var(--home);"></span><span class="dest-name">Дом</span></div>
+        <div class="dest-addr">мкр. Отырар, 38</div>
+      </div>
+    </div>
+
+    <div class="profile-row">
+      <button class="profile-btn active" data-profile="foot" id="btnFoot">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="13" cy="4" r="1.6"/><path d="M10.5 21l1-6-2-2 .5-4.5L7 10l-1.5 4M13.5 9l2 2 3-1M9.5 12l3 1 2 6"/></svg>
+        Пешком
+      </button>
+      <button class="profile-btn" data-profile="car" id="btnCar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 16V9l2-4h10l2 4v7M3 16h18M7 16v2M17 16v2"/><circle cx="7.5" cy="16" r="1.4"/><circle cx="16.5" cy="16" r="1.4"/></svg>
+        Машина
+      </button>
+    </div>
+
+    <div class="info-row">
+      <div class="info-stats" id="statsBox" style="display:none;">
+        <div class="stat"><div class="num" id="statTime">—</div><div class="lab">мин</div></div>
+        <div class="stat"><div class="num" id="statDist">—</div><div class="lab">км</div></div>
+      </div>
+      <div class="status-msg" id="statusMsg">Выберите точку назначения</div>
+    </div>
+
+    <button class="go-btn" id="goBtn" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      Построить маршрут
+    </button>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+  const SCHOOL = { lat: 42.345582, lon: 69.618004, name: "Школа", addr: "Tengri International School" };
+  const HOME   = { lat: 42.346137, lon: 69.623075, name: "Дом", addr: "мкр. Отырар, 38" };
+
+  const map = L.map('map', { zoomControl:false, attributionControl:true }).setView([42.3458, 69.6205], 15);
+  L.tileLayer('https://cartodb-basemaps-{s}.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap, &copy; CARTO',
+    maxZoom: 19, subdomains:'abcd'
+  }).addTo(map);
+
+  function pinIcon(color, letter){
+    return L.divIcon({
+      className:'', iconSize:[30,30], iconAnchor:[15,30],
+      html:`<svg width="30" height="30" viewBox="0 0 30 30"><path d="M15 0C7 0 1 6.2 1 13.5 1 22.5 15 30 15 30S29 22.5 29 13.5C29 6.2 23 0 15 0z" fill="${color}"/><circle cx="15" cy="13" r="6.2" fill="#0F1720"/><text x="15" y="16.5" font-family="Space Grotesk, sans-serif" font-size="9" font-weight="700" fill="${color}" text-anchor="middle">${letter}</text></svg>`
+    });
+  }
+  const schoolMarker = L.marker([SCHOOL.lat, SCHOOL.lon], {icon: pinIcon('#4FB6AC','Ш')}).addTo(map)
+    .bindTooltip(SCHOOL.name, {permanent:false, direction:'top', className:'pin-label', offset:[0,-28]});
+  const homeMarker = L.marker([HOME.lat, HOME.lon], {icon: pinIcon('#E8A33D','Д')}).addTo(map)
+    .bindTooltip(HOME.name, {permanent:false, direction:'top', className:'pin-label', offset:[0,-28]});
+
+  let meMarker = null, meCoords = null, watchId = null;
+  let destination = null;
+  let profile = 'foot';
+  let routeLine = null;
+
+  const cardSchool = document.getElementById('cardSchool');
+  const cardHome = document.getElementById('cardHome');
+  const goBtn = document.getElementById('goBtn');
+  const statusMsg = document.getElementById('statusMsg');
+  const statsBox = document.getElementById('statsBox');
+  const statTime = document.getElementById('statTime');
+  const statDist = document.getElementById('statDist');
+  const locateBtn = document.getElementById('locateBtn');
+  const btnFoot = document.getElementById('btnFoot');
+  const btnCar = document.getElementById('btnCar');
+
+  function meIcon(){
+    return L.divIcon({ className:'', iconSize:[16,16], iconAnchor:[8,8], html:'<div class="me-pulse"></div>' });
+  }
+
+  function startLocating(){
+    if(!navigator.geolocation){
+      statusMsg.textContent = 'Геолокация недоступна в этом браузере';
+      return;
+    }
+    locateBtn.classList.add('tracking');
+    statusMsg.textContent = 'Определяем ваше местоположение…';
+    watchId = navigator.geolocation.watchPosition(pos => {
+      meCoords = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      if(!meMarker){
+        meMarker = L.marker([meCoords.lat, meCoords.lon], {icon: meIcon(), zIndexOffset:1000}).addTo(map);
+        fitAll();
+      } else {
+        meMarker.setLatLng([meCoords.lat, meCoords.lon]);
+      }
+      if(destination) buildRoute();
+      else statusMsg.textContent = 'Выберите точку назначения';
+    }, err => {
+      locateBtn.classList.remove('tracking');
+      statusMsg.textContent = 'Не удалось получить геолокацию: ' + (err.message || 'доступ запрещён');
+    }, { enableHighAccuracy:true, maximumAge:5000, timeout:15000 });
+  }
+
+  function fitAll(){
+    const pts = [[SCHOOL.lat, SCHOOL.lon],[HOME.lat, HOME.lon]];
+    if(meCoords) pts.push([meCoords.lat, meCoords.lon]);
+    map.fitBounds(pts, { padding:[60,60], maxZoom:16 });
+  }
+
+  locateBtn.addEventListener('click', () => {
+    if(meCoords) fitAll();
+    else startLocating();
+  });
+
+  function selectDestination(dest, card){
+    destination = dest;
+    cardSchool.classList.toggle('active', dest === SCHOOL);
+    cardHome.classList.toggle('active', dest === HOME);
+    if(!meCoords){
+      startLocating();
+      statusMsg.textContent = 'Ищем ваше местоположение…';
+    } else {
+      buildRoute();
+    }
+  }
+  cardSchool.addEventListener('click', () => selectDestination(SCHOOL));
+  cardHome.addEventListener('click', () => selectDestination(HOME));
+
+  function setProfile(p){
+    profile = p;
+    btnFoot.classList.toggle('active', p==='foot');
+    btnCar.classList.toggle('active', p==='car');
+    if(destination && meCoords) buildRoute();
+  }
+  btnFoot.addEventListener('click', () => setProfile('foot'));
+  btnCar.addEventListener('click', () => setProfile('car'));
+
+  async function buildRoute(){
+    if(!meCoords || !destination) return;
+    statusMsg.textContent = 'Строим маршрут…';
+    goBtn.disabled = true;
+    const osrmProfile = profile === 'car' ? 'driving' : 'foot';
+    const url = `https://router.project-osrm.org/route/v1/${osrmProfile}/${meCoords.lon},${meCoords.lat};${destination.lon},${destination.lat}?overview=full&geometries=geojson`;
+    try{
+      const res = await fetch(url);
+      const data = await res.json();
+      if(data.code === 'Ok' && data.routes && data.routes[0]){
+        const route = data.routes[0];
+        const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+        if(routeLine) map.removeLayer(routeLine);
+        routeLine = L.polyline(coords, { color: destination===SCHOOL ? '#4FB6AC' : '#E8A33D', weight:5, opacity:0.9, lineCap:'round' }).addTo(map);
+        map.fitBounds(routeLine.getBounds(), { padding:[70,70] });
+
+        const mins = Math.round(route.duration/60);
+        const km = (route.distance/1000).toFixed(1);
+        statTime.textContent = mins;
+        statDist.textContent = km;
+        statsBox.style.display = 'flex';
+        statusMsg.style.display = 'none';
+        goBtn.disabled = false;
+      } else {
+        throw new Error('no route');
+      }
+    } catch(e){
+      statsBox.style.display = 'none';
+      statusMsg.style.display = 'block';
+      statusMsg.textContent = 'Маршрут построить не удалось, но можно открыть навигацию';
+      goBtn.disabled = false;
+    }
+  }
+
+  goBtn.addEventListener('click', () => {
+    if(!meCoords || !destination) return;
+    const rsType = profile === 'car' ? 'car' : 'pedestrian';
+    const from = `${meCoords.lon},${meCoords.lat}`;
+    const to = `${destination.lon},${destination.lat}`;
+    const url = `https://2gis.kz/routeSearch/rsType/${rsType}/from/${encodeURIComponent(from)}/to/${encodeURIComponent(to)}`;
+    window.open(url, '_blank');
+  });
+
+  fitAll();
+  startLocating();
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+</script>
+</body>
+</html>
